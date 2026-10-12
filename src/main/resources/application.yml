@@ -68,3 +68,5 @@ app:
       base-path: ${STORAGE_BASE_PATH:./uploads}
   billing:
     zone-id: ${BILLING_ZONE_ID:Asia/Kolkata}
+    default-gst-rate: ${BILLING_DEFAULT_GST_RATE:18.00}
+    default-due-days: ${BILLING_DEFAULT_DUE_DAYS:15}
