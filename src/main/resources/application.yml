@@ -19,6 +19,10 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  servlet:
+    multipart:
+      max-file-size: ${MAX_FILE_SIZE:10MB}
+      max-request-size: ${MAX_REQUEST_SIZE:12MB}
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:1025}
@@ -70,3 +74,8 @@ app:
     zone-id: ${BILLING_ZONE_ID:Asia/Kolkata}
     default-gst-rate: ${BILLING_DEFAULT_GST_RATE:18.00}
     default-due-days: ${BILLING_DEFAULT_DUE_DAYS:15}
+    allow-credit-balance: ${BILLING_ALLOW_CREDIT_BALANCE:false}
+    proration-policy: ${BILLING_PRORATION_POLICY:NONE}
+  scheduling:
+    enabled: ${SCHEDULING_ENABLED:true}
+    billing-cron: ${BILLING_CRON:0 0 2 * * *}

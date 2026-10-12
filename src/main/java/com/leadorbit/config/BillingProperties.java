@@ -10,7 +10,9 @@ public record BillingProperties(
     int defaultDueDays,
     int defaultPadding,
     java.math.BigDecimal defaultGstRate,
-    String rounding) {
+    String rounding,
+    boolean allowCreditBalance,
+    String prorationPolicy) {
 
     public BillingProperties {
         if (zoneId == null) {
@@ -25,5 +27,18 @@ public record BillingProperties(
         if (defaultGstRate == null) {
             defaultGstRate = new java.math.BigDecimal("18.00");
         }
+        if (prorationPolicy == null || prorationPolicy.isBlank()) {
+            prorationPolicy = "NONE";
+        }
+    }
+
+    /** Overpayment on a verified payment is rejected unless credit balance is allowed. */
+    public boolean allowCreditBalance() {
+        return allowCreditBalance;
+    }
+
+    /** Proration policy for mid-cycle plan changes/cancellations (only NONE is implemented). */
+    public String prorationPolicy() {
+        return prorationPolicy;
     }
 }
