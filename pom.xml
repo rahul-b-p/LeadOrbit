@@ -23,6 +23,9 @@
         <testcontainers.version>1.20.3</testcontainers.version>
         <mapstruct.version>1.6.3</mapstruct.version>
         <lombok.version>1.18.34</lombok.version>
+        <!-- Testcontainers' Docker client defaults to an API version some daemons reject;
+             pin a modern version for the forked test JVM. Override with -Ddocker.api.version. -->
+        <docker.api.version>1.43</docker.api.version>
     </properties>
 
     <dependencies>
@@ -124,6 +127,13 @@
                             <artifactId>lombok</artifactId>
                         </exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <argLine>-Dapi.version=${docker.api.version}</argLine>
                 </configuration>
             </plugin>
             <plugin>
