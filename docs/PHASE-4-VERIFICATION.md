@@ -5,7 +5,7 @@
 
 ---
 
-## 1. Test matrix — **46 tests, all green** (last full run: `Tests run: 46, Failures: 0, Errors: 0`)
+## 1. Test matrix — **48 tests, all green** (last full run: `Tests run: 48, Failures: 0, Errors: 0`)
 
 | Suite | Count | Covers |
 |---|---|---|
@@ -20,6 +20,7 @@
 | `subscription.BillingPeriodCalculatorTest` | 6 | month-end clamp incl. Feb/leap, quarterly/yearly anchor math (unit) |
 | `subscription.SubscriptionBillingIntegrationTest` | 4 | recurring invoice once + restart-safe, GST totals on generated invoice, period→PAID on settlement, state transitions + proration 400, viewer read-only |
 | `notification.NotificationAndReportIntegrationTest` | 4 | outbox enqueue on issue + simulated dispatch + delivery log, idempotent double-enqueue, PDF download `%PDF`, revenue/AR/MRR reports, viewer 403 on pdf/outbox |
+| `identity.PasswordResetIntegrationTest` | 2 | forgot-password enqueues outbox email without email enumeration, reset rotates password, single-use token, old refresh sessions revoked |
 | `LeadOrbitApplicationTests` | 1 | context boots against Postgres with migrations |
 
 ## 2. How to run

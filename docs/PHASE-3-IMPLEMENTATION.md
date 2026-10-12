@@ -97,6 +97,10 @@
   MRR + annual run rate from ACTIVE subscriptions (monthly-equivalent of quarterly/yearly plans).
 - **Demo dataset** (`app.demo.enabled=true`): idempotent synthetic seller/customer/plan/subscription/
   invoice (with the invoice-issued outbox notification) to explore APIs without importing anything real.
+- **Password self-service reset**: `POST /auth/forgot-password` + `POST /auth/reset-password` (public).
+  Tokens are opaque, single-use, SHA-256-hashed at rest, expire in 60 minutes; a successful reset
+  revokes every existing refresh session. The email goes through the outbox (`password-reset`
+  template). Unknown emails get an identical response (no user enumeration).
 
 ---
 

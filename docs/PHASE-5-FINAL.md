@@ -47,6 +47,7 @@ docker run --rm -p 8080:8080 -v "$PWD":/app -w /app \
 | `API_PREFIX` | `/api/v1` | Context path |
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | dev-only placeholders | HMAC secrets — **override in any real environment** |
 | `JWT_ACCESS_EXPIRY` / `JWT_REFRESH_EXPIRY` | `PT15M` / `P7D` | Token lifetimes |
+| `RESET_LINK_BASE` | `http://localhost:5173` | Base URL used in password-reset emails |
 | `BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD` | `admin@example.com` / empty | First-run super-admin (password empty ⇒ auto-generated to logs) |
 | `CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Allowed origins |
 | `BILLING_ZONE_ID` | `Asia/Kolkata` | Billing day boundary (invoice/overdue dates) |
@@ -68,7 +69,7 @@ All under `API_PREFIX`; every mutation and most reads are permission-gated (`@Pr
 
 | Area | Endpoints |
 |---|---|
-| Auth | `POST /auth/sign-in`, `POST /auth/refresh`, `POST /auth/sign-out` |
+| Auth | `POST /auth/sign-in`, `POST /auth/refresh`, `POST /auth/sign-out`, `POST /auth/forgot-password` (public), `POST /auth/reset-password` (public, single-use token) |
 | Users & RBAC | `/users`, `/roles`, `/permissions`, `/audit-events` |
 | Catalog | `/catalog/services`, `/catalog/gst-rate-slabs` |
 | CRM | `/crm/companies`, `/crm/contacts`, `/crm/leads` (convert/pipeline), `/crm/...` config |
@@ -100,8 +101,6 @@ All under `API_PREFIX`; every mutation and most reads are permission-gated (`@Pr
 
 - Lead `proposals` / `meetings` / `meeting_notes` tables (Phase-1 inventory) — CRM surface is
   otherwise complete; the schema can be added via a new Flyway migration without touching billing.
-- `POST /auth/forgot-password` + `POST /auth/reset-password` — endpoints reserved; dispatch the token
-  through the outbox when wired.
 - Mid-cycle proration (`PRORATE_BY_DAYS`) — explicitly rejected today; safe failure is a documented 400.
 - S3 storage adapter (port exists: `FileStorage`).
 - Credit-note issuance from a paid invoice (debit note/bill of supply variants of the numbering).
