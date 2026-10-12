@@ -19,11 +19,17 @@ import com.leadorbit.billing.dto.InvoiceEventResponse;
 import com.leadorbit.billing.dto.InvoiceResponse;
 import com.leadorbit.billing.dto.SellerProfileRequest;
 import com.leadorbit.billing.dto.SellerProfileResponse;
+import com.leadorbit.billing.service.InvoicePdfService;
 import com.leadorbit.billing.service.InvoiceService;
 import com.leadorbit.billing.service.SellerProfileService;
 import com.leadorbit.common.api.ApiResponse;
 
 import jakarta.validation.Valid;
+
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 @RestController
 @RequestMapping("/billing")
@@ -31,10 +37,13 @@ public class BillingController {
 
     private final SellerProfileService sellerProfileService;
     private final InvoiceService invoiceService;
+    private final InvoicePdfService invoicePdfService;
 
-    public BillingController(SellerProfileService sellerProfileService, InvoiceService invoiceService) {
+    public BillingController(SellerProfileService sellerProfileService, InvoiceService invoiceService,
+                             InvoicePdfService invoicePdfService) {
         this.sellerProfileService = sellerProfileService;
         this.invoiceService = invoiceService;
+        this.invoicePdfService = invoicePdfService;
     }
 
     // ------------------------------------------------------------------ seller profiles
@@ -103,6 +112,18 @@ public class BillingController {
     public ApiResponse<InvoiceResponse> cancelInvoice(@PathVariable Long id,
                                                       @Valid @RequestBody InvoiceCancelRequest request) {
         return ApiResponse.ok("Invoice cancelled", invoiceService.cancel(id, request));
+    }
+
+    @GetMapping(value = "/invoices/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)
+    @PreAuthorize("hasAuthority('invoice.download')")
+    public ResponseEntity<byte[]> downloadInvoicePdf(@PathVariable Long id) {
+        byte[] pdf = invoicePdfService.generate(id);
+        String filename = "invoice-" + id + ".pdf";
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename(filename).build().toString())
+            .contentType(MediaType.APPLICATION_PDF)
+            .body(pdf);
     }
 
     @DeleteMapping("/invoices/{id}")

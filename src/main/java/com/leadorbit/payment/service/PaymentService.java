@@ -75,6 +75,7 @@ public class PaymentService {
     private final FileStorage fileStorage;
     private final AuditService auditService;
     private final BillingProperties billingProperties;
+    private final com.leadorbit.notification.service.NotificationService notificationService;
 
     public PaymentService(PaymentRepository paymentRepository,
                           PaymentEventRepository paymentEventRepository,
@@ -86,7 +87,8 @@ public class PaymentService {
                           UserRepository userRepository,
                           FileStorage fileStorage,
                           AuditService auditService,
-                          BillingProperties billingProperties) {
+                          BillingProperties billingProperties,
+                          com.leadorbit.notification.service.NotificationService notificationService) {
         this.paymentRepository = paymentRepository;
         this.paymentEventRepository = paymentEventRepository;
         this.paymentProofRepository = paymentProofRepository;
@@ -98,6 +100,7 @@ public class PaymentService {
         this.fileStorage = fileStorage;
         this.auditService = auditService;
         this.billingProperties = billingProperties;
+        this.notificationService = notificationService;
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -230,6 +233,22 @@ public class PaymentService {
 
         audit(action, "Allocated " + payment.getAmount() + " to invoice "
             + invoice.getId() + " (" + allocation.derivedStatus() + ")", toResponse(payment));
+
+        enqueueVerifiedNotification(payment, invoice);
+    }
+
+    /** Outbox notification to the customer when a payment is verified (same transaction). */
+    private void enqueueVerifiedNotification(Payment payment, Invoice invoice) {
+        String email = com.leadorbit.notification.service.NotificationRecipients.emailOf(invoice);
+        if (email == null) {
+            return;
+        }
+        notificationService.enqueue("payment-verified",
+            "payment-verified:" + payment.getId(), "payment-verified", email, java.util.Map.of(
+                "invoiceNumber", String.valueOf(invoice.getInvoiceNumber()),
+                "customerName", com.leadorbit.notification.service.NotificationRecipients.nameOf(invoice),
+                "sellerName", invoice.getSeller() == null ? "" : invoice.getSeller().getLegalName(),
+                "amount", payment.getAmount().toPlainString()));
     }
 
     private void maybeConvertLead(Lead lead, BigDecimal cumulativeVerified) {

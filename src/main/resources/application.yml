@@ -79,3 +79,8 @@ app:
   scheduling:
     enabled: ${SCHEDULING_ENABLED:true}
     billing-cron: ${BILLING_CRON:0 0 2 * * *}
+  mail:
+    enabled: ${MAIL_ENABLED:true}
+    dispatcher-delay-ms: ${MAIL_DISPATCHER_DELAY_MS:30000}
+  demo:
+    enabled: ${DEMO_ENABLED:false}

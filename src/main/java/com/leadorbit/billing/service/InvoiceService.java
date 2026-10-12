@@ -49,6 +49,8 @@ import com.leadorbit.crm.domain.Lead;
 import com.leadorbit.crm.repository.CompanyRepository;
 import com.leadorbit.crm.repository.ContactRepository;
 import com.leadorbit.crm.repository.LeadRepository;
+import com.leadorbit.notification.service.NotificationRecipients;
+import com.leadorbit.notification.service.NotificationService;
 import com.leadorbit.security.SecurityUtils;
 
 @Service
@@ -68,6 +70,7 @@ public class InvoiceService {
     private final BillingProperties billingProperties;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           InvoiceEventRepository invoiceEventRepository,
@@ -80,7 +83,8 @@ public class InvoiceService {
                           InvoiceNumberAllocator numberAllocator,
                           BillingProperties billingProperties,
                           ObjectMapper objectMapper,
-                          AuditService auditService) {
+                          AuditService auditService,
+                          NotificationService notificationService) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceEventRepository = invoiceEventRepository;
         this.sellerProfileRepository = sellerProfileRepository;
@@ -93,6 +97,7 @@ public class InvoiceService {
         this.billingProperties = billingProperties;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -211,7 +216,23 @@ public class InvoiceService {
         recordEvent(invoice, "INVOICE_ISSUED",
             "Issued as " + number + " (FY " + InvoiceNumberAllocator.financialYear(today) + ")");
         audit(actor(), "invoice.issue", "Issued invoice " + number, toResponse(invoice), null);
+        enqueueIssuedNotification(invoice);
         return toResponse(invoice);
+    }
+
+    /** Outbox notification to the customer when an invoice is issued (same transaction). */
+    private void enqueueIssuedNotification(Invoice invoice) {
+        String email = NotificationRecipients.emailOf(invoice);
+        if (email == null) {
+            return;
+        }
+        notificationService.enqueue("invoice-issued", "invoice-issued:" + invoice.getId(),
+            "invoice-issued", email, java.util.Map.of(
+                "invoiceNumber", String.valueOf(invoice.getInvoiceNumber()),
+                "customerName", NotificationRecipients.nameOf(invoice),
+                "sellerName", invoice.getSeller() == null ? "" : invoice.getSeller().getLegalName(),
+                "amount", invoice.getGrandTotal().toPlainString(),
+                "dueDate", String.valueOf(invoice.getDueDate())));
     }
 
     @Transactional
