@@ -21,4 +21,13 @@ public final class SecurityUtils {
     public static Long currentUserId() {
         return currentPrincipal().userId();
     }
+
+    /** User id when a request is authenticated, else {@code null} (e.g. scheduled jobs). */
+    public static Long currentUserIdOrNull() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof JwtPrincipal principal)) {
+            return null;
+        }
+        return principal.userId();
+    }
 }

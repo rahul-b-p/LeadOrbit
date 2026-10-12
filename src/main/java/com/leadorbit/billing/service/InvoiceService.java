@@ -49,6 +49,8 @@ import com.leadorbit.crm.domain.Lead;
 import com.leadorbit.crm.repository.CompanyRepository;
 import com.leadorbit.crm.repository.ContactRepository;
 import com.leadorbit.crm.repository.LeadRepository;
+import com.leadorbit.notification.service.NotificationRecipients;
+import com.leadorbit.notification.service.NotificationService;
 import com.leadorbit.security.SecurityUtils;
 
 @Service
@@ -68,6 +70,7 @@ public class InvoiceService {
     private final BillingProperties billingProperties;
     private final ObjectMapper objectMapper;
     private final AuditService auditService;
+    private final NotificationService notificationService;
 
     public InvoiceService(InvoiceRepository invoiceRepository,
                           InvoiceEventRepository invoiceEventRepository,
@@ -80,7 +83,8 @@ public class InvoiceService {
                           InvoiceNumberAllocator numberAllocator,
                           BillingProperties billingProperties,
                           ObjectMapper objectMapper,
-                          AuditService auditService) {
+                          AuditService auditService,
+                          NotificationService notificationService) {
         this.invoiceRepository = invoiceRepository;
         this.invoiceEventRepository = invoiceEventRepository;
         this.sellerProfileRepository = sellerProfileRepository;
@@ -93,6 +97,7 @@ public class InvoiceService {
         this.billingProperties = billingProperties;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -211,7 +216,23 @@ public class InvoiceService {
         recordEvent(invoice, "INVOICE_ISSUED",
             "Issued as " + number + " (FY " + InvoiceNumberAllocator.financialYear(today) + ")");
         audit(actor(), "invoice.issue", "Issued invoice " + number, toResponse(invoice), null);
+        enqueueIssuedNotification(invoice);
         return toResponse(invoice);
+    }
+
+    /** Outbox notification to the customer when an invoice is issued (same transaction). */
+    private void enqueueIssuedNotification(Invoice invoice) {
+        String email = NotificationRecipients.emailOf(invoice);
+        if (email == null) {
+            return;
+        }
+        notificationService.enqueue("invoice-issued", "invoice-issued:" + invoice.getId(),
+            "invoice-issued", email, java.util.Map.of(
+                "invoiceNumber", String.valueOf(invoice.getInvoiceNumber()),
+                "customerName", NotificationRecipients.nameOf(invoice),
+                "sellerName", invoice.getSeller() == null ? "" : invoice.getSeller().getLegalName(),
+                "amount", invoice.getGrandTotal().toPlainString(),
+                "dueDate", String.valueOf(invoice.getDueDate())));
     }
 
     @Transactional
@@ -247,6 +268,55 @@ public class InvoiceService {
         invoiceRepository.save(invoice);
         recordEvent(invoice, "INVOICE_DELETED", "Draft removed");
         audit(actor(), "invoice.delete_draft", "Deleted draft invoice " + id, null, null);
+    }
+
+    /**
+     * Create and immediately issue an invoice on behalf of the system (recurring billing
+     * job). Reuses the full draft→issue pipeline so numbering, snapshots, events and audit
+     * invariants hold; the actor is recorded as null (system).
+     */
+    @Transactional
+    public InvoiceResponse createAndIssueSystemInvoice(Long sellerId, Long companyId,
+                                                       Long contactId, Long serviceId,
+                                                       String description, String hsnSac,
+                                                       BigDecimal rate, BigDecimal gstRate,
+                                                       LocalDate invoiceDate, LocalDate dueDate,
+                                                       boolean taxInclusive) {
+        InvoiceLineRequest line = new InvoiceLineRequest(serviceId, description, hsnSac,
+            BigDecimal.ONE, "cycle", rate, BigDecimal.ZERO, gstRate);
+        InvoiceCreateRequest request = new InvoiceCreateRequest(null, sellerId, companyId, contactId,
+            null, invoiceDate, dueDate, null, null, taxInclusive, List.of(line));
+        InvoiceResponse draft = createDraft(request);
+        return issue(draft.id());
+    }
+
+    /**
+     * Apply server-side payment allocation: set amount_paid to the total of VERIFIED payments
+     * and derive the invoice status. Must be called with the invoice row lock held.
+     *
+     * <p>Total-recompute semantics make retries idempotent after a crash: the value is never
+     * incremented, it is derived from the VERIFIED payments each time.</p>
+     */
+    @Transactional
+    public InvoiceAllocation allocate(Invoice invoice, BigDecimal totalVerifiedAmount, LocalDate today) {
+        if (invoice.getStatus() == InvoiceStatus.CANCELLED) {
+            throw ApiException.conflict("Cannot allocate payments to a cancelled invoice");
+        }
+        invoice.setAmountPaid(totalVerifiedAmount);
+        BigDecimal outstanding = invoice.getGrandTotal().subtract(totalVerifiedAmount);
+        InvoiceStatus derived;
+        if (outstanding.signum() <= 0) {
+            derived = InvoiceStatus.PAID;
+        } else if (totalVerifiedAmount.signum() > 0) {
+            derived = InvoiceStatus.PARTIALLY_PAID;
+        } else if (invoice.getDueDate() != null && invoice.getDueDate().isBefore(today)) {
+            derived = InvoiceStatus.OVERDUE;
+        } else {
+            derived = InvoiceStatus.ISSUED;
+        }
+        invoice.setStatus(derived);
+        invoiceRepository.save(invoice);
+        return new InvoiceAllocation(outstanding.max(BigDecimal.ZERO), derived);
     }
 
     // ------------------------------------------------------------------ internals
@@ -457,7 +527,7 @@ public class InvoiceService {
     }
 
     private Long actor() {
-        return SecurityUtils.currentUserId();
+        return SecurityUtils.currentUserIdOrNull();
     }
 
     private InvoiceDocType parseDocType(String value) {
