@@ -1,0 +1,47 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: leadorbit
+      POSTGRES_USER: leadorbit
+      POSTGRES_PASSWORD: leadorbit
+    ports:
+      - "5432:5432"
+    volumes:
+      - leadorbit_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leadorbit -d leadorbit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: leadorbit
+      DB_USERNAME: leadorbit
+      DB_PASSWORD: leadorbit
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      JWT_ACCESS_SECRET: local-dev-access-secret-change-me-1234567890
+      JWT_REFRESH_SECRET: local-dev-refresh-secret-change-me-1234567890
+      BOOTSTRAP_ADMIN_EMAIL: admin@example.com
+      BOOTSTRAP_ADMIN_PASSWORD: LocalDevAdminPass123!
+      CORS_ALLOWED_ORIGINS: http://localhost:5173
+    ports:
+      - "8080:8080"
+    profiles: ["full"]
+
+volumes:
+  leadorbit_pgdata:
